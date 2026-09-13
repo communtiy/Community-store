@@ -1,0 +1,43 @@
+name: Source Integrity
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/source-integrity.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify source chunks exactly
+        shell: bash
+        run: |
+          set -euo pipefail
+          expected=(
+            ddb35de299aa66b6c002800b858c90d4b7d0412781a742e3128cefa4329b9d7b
+            e2f1b2f4e1e396c248ee645fdee619e6ba3f79b6ad8e5e1abebfb00e453c6dc2
+            6adb82b064b7fbfa1f69cb071577851d68a1e4fec7f289261c9d354688d5eea9
+            1f178976aca1fbdce8355d5e1abc5b83c5806756955305339849248f5ca5d2e2
+            3a2961863364eb470188c3f94404977b1a7ea9e33f2f3dce284d333b9f66e217
+            8415c2b7aa1da81ab66b10bd4574ef61a55ae85762d22c9cc3f16bdfed842dca
+            6968bce2851bf36bb7456f513df1fe9f54945e829054f8c4e8bbc676d021f9d0
+            17e82a43da0daf9368b0be173e338b526cdc4f0972c75b2253f47493335be3ae
+            83db49b00d99c6ef731743bd6e45a68d7719f632f7a8b6f0526ed75a019ef347
+            27afc7114806ea70241cb2a347f2e95a0035fba8c9b3fcf3aed240778f5ca4f4
+          )
+          bad=0
+          for n in $(seq 0 9); do
+            i=$(printf '%02d' "$n")
+            f="_source/web.part${i}.b64"
+            actual=$(sha256sum "$f" | awk '{print $1}')
+            bytes=$(wc -c < "$f")
+            echo "part${i}: bytes=${bytes} sha=${actual}"
+            if [ "$actual" != "${expected[$n]}" ]; then
+              echo "MISMATCH part${i}: expected=${expected[$n]}"
+              bad=1
+            fi
+          done
+          exit "$bad"
