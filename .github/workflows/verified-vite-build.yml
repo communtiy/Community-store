@@ -32,9 +32,9 @@ jobs:
           test -f work/package.json
           test -f work/vite.config.ts
           test -f work/src/main.tsx
-      - name: Install dependencies
+      - name: Install dependencies with platform optional packages
         working-directory: work
-        run: npm install --omit=optional --no-audit --no-fund
+        run: npm install --include=optional --no-audit --no-fund
       - name: Vite build
         working-directory: work
         run: npm run build
