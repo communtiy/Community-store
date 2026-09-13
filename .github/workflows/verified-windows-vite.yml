@@ -1,0 +1,45 @@
+name: Verified Windows Vite
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reconstruct verified source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat _repair/p00_0 _repair/p00_1 _repair/p00_2 _repair/p00_3 _repair/p00_4 > /tmp/p00
+          cat _repair/p03_0 _repair/p03_1 _repair/p03_2 _repair/p03_3 _repair/p03_4 > /tmp/p03
+          cat _repair/p06_0 _repair/p06_1 _repair/p06_2 _repair/p06_3 _repair/p06_4a _repair/p06_4b > /tmp/p06
+          echo 'ddb35de299aa66b6c002800b858c90d4b7d0412781a742e3128cefa4329b9d7b  /tmp/p00' | sha256sum -c -
+          echo '1f178976aca1fbdce8355d5e1abc5b83c5806756955305339849248f5ca5d2e2  /tmp/p03' | sha256sum -c -
+          echo '6968bce2851bf36bb7456f513df1fe9f54945e829054f8c4e8bbc676d021f9d0  /tmp/p06' | sha256sum -c -
+          cat /tmp/p00 _source/web.part01.b64 _source/web.part02.b64 /tmp/p03 _source/web.part04.b64 _source/web.part05.b64 /tmp/p06 _source/web.part07.b64 _source/web.part08.b64 _source/web.part09.b64 > /tmp/almujtama-web.b64
+          base64 -d /tmp/almujtama-web.b64 > /tmp/almujtama-web.zip
+          rm -rf work && mkdir work
+          unzip -q /tmp/almujtama-web.zip -d work
+      - name: Install dependencies including Windows platform packages
+        working-directory: work
+        shell: cmd
+        run: npm install --include=optional --no-audit --no-fund
+      - name: Verify Windows Rollup native package
+        working-directory: work
+        shell: cmd
+        run: node -e "console.log(require.resolve('@rollup/rollup-win32-x64-msvc'))"
+      - name: Vite build on Windows
+        working-directory: work
+        shell: cmd
+        run: npm run build
+      - name: Verify dist
+        working-directory: work
+        shell: cmd
+        run: if not exist dist\index.html exit /b 1
