@@ -44,10 +44,7 @@ jobs:
               s = path.read_text(encoding='ascii')
               if sha(s) == target:
                   return s
-
-              # Case 1: exactly one character was dropped.
               if len(s) == expected_len - 1:
-                  print(f'{path}: searching one missing character...')
                   for i in range(len(s) + 1):
                       left, right = s[:i], s[i:]
                       for ch in alphabet:
@@ -56,10 +53,7 @@ jobs:
                               path.write_text(cand, encoding='ascii')
                               print(f'{path}: repaired missing char at position {i}: {ch!r}')
                               return cand
-
-              # Case 2: exactly one character was changed.
               if len(s) == expected_len:
-                  print(f'{path}: searching one substituted character...')
                   for i, old in enumerate(s):
                       left, right = s[:i], s[i+1:]
                       for ch in alphabet:
@@ -70,7 +64,6 @@ jobs:
                               path.write_text(cand, encoding='ascii')
                               print(f'{path}: repaired substitution at position {i}: {old!r} -> {ch!r}')
                               return cand
-
               raise SystemExit(f'Unable to repair {path}; bytes={len(s)}, sha={sha(s)}, expected={target}')
 
           for n in range(10):
@@ -98,9 +91,9 @@ jobs:
           test -f work/src/main.tsx
           echo 'Source ZIP is byte-for-byte verified.'
 
-      - name: Install dependencies
+      - name: Install dependencies including Rollup native package
         working-directory: work
-        run: npm install --omit=optional --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Vite build
         working-directory: work
