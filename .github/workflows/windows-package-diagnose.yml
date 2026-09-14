@@ -20,91 +20,72 @@ jobs:
         run: |
           $py = @'
           from pathlib import Path
-          import hashlib, base64, zipfile, shutil
-
-          expected = {
-              0: 'ddb35de299aa66b6c002800b858c90d4b7d0412781a742e3128cefa4329b9d7b',
-              1: 'e2f1b2f4e1e396c248ee645fdee619e6ba3f79b6ad8e5e1abebfb00e453c6dc2',
-              2: '6adb82b064b7fbfa1f69cb071577851d68a1e4fec7f289261c9d354688d5eea9',
-              3: '1f178976aca1fbdce8355d5e1abc5b83c5806756955305339849248f5ca5d2e2',
-              4: '3a2961863364eb470188c3f94404977b1a7ea9e33f2f3dce284d333b9f66e217',
-              5: '8415c2b7aa1da81ab66b10bd4574ef61a55ae85762d22c9cc3f16bdfed842dca',
-              6: '6968bce2851bf36bb7456f513df1fe9f54945e829054f8c4e8bbc676d021f9d0',
-              7: '17e82a43da0daf9368b0be173e338b526cdc4f0972c75b2253f47493335be3ae',
-              8: '83db49b00d99c6ef731743bd6e45a68d7719f632f7a8b6f0526ed75a019ef347',
-              9: '27afc7114806ea70241cb2a347f2e95a0035fba8c9b3fcf3aed240778f5ca4f4',
-          }
-          alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='
+          import hashlib, base64, zipfile, shutil, io
+          expected={0:'ddb35de299aa66b6c002800b858c90d4b7d0412781a742e3128cefa4329b9d7b',1:'e2f1b2f4e1e396c248ee645fdee619e6ba3f79b6ad8e5e1abebfb00e453c6dc2',2:'6adb82b064b7fbfa1f69cb071577851d68a1e4fec7f289261c9d354688d5eea9',3:'1f178976aca1fbdce8355d5e1abc5b83c5806756955305339849248f5ca5d2e2',4:'3a2961863364eb470188c3f94404977b1a7ea9e33f2f3dce284d333b9f66e217',5:'8415c2b7aa1da81ab66b10bd4574ef61a55ae85762d22c9cc3f16bdfed842dca',6:'6968bce2851bf36bb7456f513df1fe9f54945e829054f8c4e8bbc676d021f9d0',7:'17e82a43da0daf9368b0be173e338b526cdc4f0972c75b2253f47493335be3ae',8:'83db49b00d99c6ef731743bd6e45a68d7719f632f7a8b6f0526ed75a019ef347',9:'27afc7114806ea70241cb2a347f2e95a0035fba8c9b3fcf3aed240778f5ca4f4'}
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/='
           def sha(s): return hashlib.sha256(s.encode('ascii')).hexdigest()
-          def repair(path,target,expected_len):
-              s=path.read_text('ascii')
-              if sha(s)==target: return s
-              if len(s)==expected_len-1:
-                  for i in range(len(s)+1):
-                      for ch in alphabet:
-                          c=s[:i]+ch+s[i:]
-                          if sha(c)==target:
-                              path.write_text(c,encoding='ascii'); return c
-              if len(s)==expected_len:
-                  for i,old in enumerate(s):
-                      for ch in alphabet:
-                          if ch==old: continue
-                          c=s[:i]+ch+s[i+1:]
-                          if sha(c)==target:
-                              path.write_text(c,encoding='ascii'); return c
-              raise SystemExit(f'cannot repair {path}')
-          parts=[]
-          for n in range(10):
-              p=Path(f'_source/web.part{n:02d}.b64')
-              parts.append(repair(p,expected[n],8676 if n==9 else 10000))
+          def rep(p,t,l):
+            s=p.read_text('ascii')
+            if sha(s)==t:return s
+            if len(s)==l-1:
+              for i in range(len(s)+1):
+                for ch in alphabet:
+                  c=s[:i]+ch+s[i:]
+                  if sha(c)==t:p.write_text(c,encoding='ascii');return c
+            if len(s)==l:
+              for i,o in enumerate(s):
+                for ch in alphabet:
+                  if ch==o:continue
+                  c=s[:i]+ch+s[i+1:]
+                  if sha(c)==t:p.write_text(c,encoding='ascii');return c
+            raise SystemExit('repair failed')
+          parts=[rep(Path(f'_source/web.part{n:02d}.b64'),expected[n],8676 if n==9 else 10000) for n in range(10)]
           raw=base64.b64decode(''.join(parts))
-          got=hashlib.sha256(raw).hexdigest()
-          want='2c24027cfb83fe6b1a00949e468b4e7b52787de244f21e73b2e7ec1f82e7e43a'
-          if got!=want: raise SystemExit(f'zip sha mismatch {got}')
-          shutil.rmtree('work',ignore_errors=True)
-          Path('work').mkdir()
-          with zipfile.ZipFile(__import__('io').BytesIO(raw)) as z: z.extractall('work')
-          print('SOURCE_OK')
+          assert hashlib.sha256(raw).hexdigest()=='2c24027cfb83fe6b1a00949e468b4e7b52787de244f21e73b2e7ec1f82e7e43a'
+          shutil.rmtree('work',ignore_errors=True);Path('work').mkdir()
+          with zipfile.ZipFile(io.BytesIO(raw)) as z:z.extractall('work')
           '@
           $py | Set-Content -Encoding UTF8 repair.py
           python repair.py
 
-      - name: Prepare minimal Electron packaging harness
+      - name: Prepare Electron packaging harness without winCodeSign
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force work\electron,work\dist,work\database | Out-Null
-          @'
-          const { app, BrowserWindow } = require('electron');
-          app.whenReady().then(() => { const w = new BrowserWindow({show:false}); w.loadFile('dist/index.html'); });
-          '@ | Set-Content -Encoding UTF8 work\electron\main.cjs
-          '<!doctype html><html><body>ok</body></html>' | Set-Content -Encoding UTF8 work\dist\index.html
-          '-- diagnostic schema --' | Set-Content -Encoding UTF8 work\database\schema.sql
+          $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+          [System.IO.File]::WriteAllText('work\electron\main.cjs', "const { app, BrowserWindow } = require('electron');`napp.whenReady().then(() => { const w = new BrowserWindow({show:false}); w.loadFile('dist/index.html'); });`n", $utf8NoBom)
+          [System.IO.File]::WriteAllText('work\dist\index.html', '<!doctype html><html><body>ok</body></html>', $utf8NoBom)
+          [System.IO.File]::WriteAllText('work\database\schema.sql', '-- diagnostic schema --', $utf8NoBom)
           $p = Get-Content work\package.json -Raw | ConvertFrom-Json
+          if ($p.optionalDependencies -and $p.optionalDependencies.PSObject.Properties.Name -contains 'realm') { $p.optionalDependencies.PSObject.Properties.Remove('realm') }
           $p.main = 'electron/main.cjs'
           $p.build = [ordered]@{
             appId = 'sa.community.almujtama.diagnostic'
             productName = 'AlMujtama Diagnostic'
             directories = @{ output = 'release' }
             files = @('dist/**/*','electron/**/*','database/**/*','package.json')
-            win = @{ target = @('nsis') }
+            win = @{ target = @('nsis'); signAndEditExecutable = $false }
             nsis = @{ oneClick = $false; allowToChangeInstallationDirectory = $true }
             artifactName = 'AlMujtama-Diagnostic-${version}.${ext}'
             asarUnpack = @('**/*.node')
           }
-          $p | ConvertTo-Json -Depth 20 | Set-Content -Encoding UTF8 work\package.json
+          $json = $p | ConvertTo-Json -Depth 30
+          [System.IO.File]::WriteAllText('work\package.json', $json, $utf8NoBom)
 
-      - name: Install dependencies including optional native packages
+      - name: Install dependencies
         working-directory: work
         run: npm install --no-audit --no-fund
 
-      - name: Package Windows EXE
+      - name: Package Windows EXE without winCodeSign
         working-directory: work
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
         run: npx electron-builder --win nsis --x64
 
-      - name: List release files
-        if: always()
+      - name: Verify installer exists
         shell: pwsh
         run: |
-          if (Test-Path work\release) { Get-ChildItem work\release -Recurse | Select-Object FullName,Length }
+          $exe = Get-ChildItem work\release -Filter '*.exe' -File | Sort-Object Length -Descending | Select-Object -First 1
+          if (-not $exe) { throw 'Installer not created' }
+          if ($exe.Length -lt 1000000) { throw "Installer too small: $($exe.Length)" }
+          Write-Host "INSTALLER_OK: $($exe.FullName) $($exe.Length) bytes"
